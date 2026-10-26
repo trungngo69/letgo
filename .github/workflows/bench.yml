@@ -39,6 +39,6 @@ jobs:
           esac
           while true; do
             if grep -l "^s SATISFIABLE" o*.txt 2>/dev/null | head -1 | grep -q .; then f=$(grep -l "^s SATISFIABLE" o*.txt|head -1); echo "SOLVED $C $f after $(( $(date +%s)-start ))s"; grep "^v" $f | tr -d 'v\n' | head -c 200; echo; pkill -f kissat; pkill -f cadical; pkill -f yalsat; break; fi
-            if ! pgrep -f "kissat|cadical|yalsat" >/dev/null; then echo "NOSOLVE $C $(( $(date +%s)-start ))s"; break; fi
+            if ! pgrep -f "kissat|cadical|yalsat" >/dev/null; then echo "NOSOLVE $C $(( $(date +%s)-start ))s"; exit 1; fi
             sleep 1
           done
