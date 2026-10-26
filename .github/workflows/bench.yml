@@ -1,0 +1,42 @@
+name: bench
+on:
+  workflow_dispatch:
+    inputs:
+      cnf:
+        description: cnf path
+        default: i2.cnf
+      tmo:
+        default: "330"
+jobs:
+  solve:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        cfg: [k-def-1,k-def-2,k-def-3,k-def-4,k-sat-1,k-sat-2,k-sat-3,k-sat-4,k-sat-5,k-sat-6,c-def-1,c-sat-2,c-sat-3,c-sat-4,y-1,y-2,y-3,y-4,y-5,y-6]
+    steps:
+      - uses: actions/checkout@v4
+      - name: build
+        run: |
+          nproc
+          git clone -q --depth 1 https://github.com/arminbiere/kissat && (cd kissat && ./configure -q >/dev/null && make -s -j4 >/dev/null) &
+          git clone -q --depth 1 https://github.com/arminbiere/cadical && (cd cadical && ./configure -q >/dev/null && make -s -j4 >/dev/null) &
+          git clone -q --depth 1 https://github.com/arminbiere/yalsat && (cd yalsat && ./configure.sh >/dev/null && make -s >/dev/null) &
+          wait; ls kissat/build/kissat cadical/build/cadical yalsat/yalsat
+      - name: solve
+        run: |
+          C=${{ matrix.cfg }}; T=${{ inputs.tmo }}; F=${{ inputs.cnf }}; S=${C##*-}
+          start=$(date +%s)
+          run1(){ timeout $T "$@" > out_$1.txt 2>&1; echo rc=$?; }
+          case $C in
+            k-def-*) for i in 1 2 3 4; do timeout $T kissat/build/kissat -q --seed=$((S*10+i)) $F > o$i.txt & done ;;
+            k-sat-*) for i in 1 2 3 4; do timeout $T kissat/build/kissat -q --sat --seed=$((S*10+i)) $F > o$i.txt & done ;;
+            c-def-*) for i in 1 2 3 4; do timeout $T cadical/build/cadical -q --seed=$((S*10+i)) $F > o$i.txt & done ;;
+            c-sat-*) for i in 1 2 3 4; do timeout $T cadical/build/cadical -q --sat --seed=$((S*10+i)) $F > o$i.txt & done ;;
+            y-*) for i in 1 2 3 4; do timeout $T yalsat/yalsat -v $F $((S*10+i)) > o$i.txt & done ;;
+          esac
+          while true; do
+            if grep -l "^s SATISFIABLE" o*.txt 2>/dev/null | head -1 | grep -q .; then f=$(grep -l "^s SATISFIABLE" o*.txt|head -1); echo "SOLVED $C $f after $(( $(date +%s)-start ))s"; grep "^v" $f | tr -d 'v\n' | head -c 200; echo; pkill -f kissat; pkill -f cadical; pkill -f yalsat; break; fi
+            if ! pgrep -f "kissat|cadical|yalsat" >/dev/null; then echo "NOSOLVE $C $(( $(date +%s)-start ))s"; break; fi
+            sleep 1
+          done
