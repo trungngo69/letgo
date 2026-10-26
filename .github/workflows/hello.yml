@@ -1,0 +1,7 @@
+name: hello
+on: workflow_dispatch
+jobs:
+  h:
+    runs-on: ubuntu-latest
+    steps:
+      - run: nproc; echo hi
