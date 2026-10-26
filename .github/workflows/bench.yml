@@ -16,6 +16,8 @@ jobs:
         cfg: [k-def-1,k-def-2,k-def-3,k-def-4,k-sat-1,k-sat-2,k-sat-3,k-sat-4,k-sat-5,k-sat-6,c-def-1,c-sat-2,c-sat-3,c-sat-4,y-1,y-2,y-3,y-4,y-5,y-6]
     steps:
       - uses: actions/checkout@v4
+      - name: unpack
+        run: xz -dk *.cnf.xz
       - name: build
         run: |
           nproc
