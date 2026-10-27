@@ -1,0 +1,33 @@
+name: build
+on: workflow_dispatch
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 1}
+      - name: build solvers
+        run: |
+          set -x
+          mkdir -p bin src && cd src
+          git clone -q --depth 1 https://github.com/arminbiere/kissat
+          git clone -q --depth 1 https://github.com/arminbiere/cadical
+          git clone -q --depth 1 https://github.com/arminbiere/yalsat
+          git clone -q --depth 1 https://github.com/adrianopolus/probSAT
+          (cd kissat && ./configure --compact && make -j4 && cp build/kissat ../../bin/) &
+          (cd cadical && ./configure && make -j4 && cp build/cadical ../../bin/) &
+          (cd yalsat && sh configure.sh && make && cp yalsat palsat ../../bin/) &
+          (cd probSAT && gcc -O3 -o ../../bin/probsat probSAT.c -lm) &
+          wait
+          cd ..; ls -la bin; for b in kissat cadical; do bin/$b --version; done
+          test -x bin/kissat -a -x bin/cadical -a -x bin/yalsat -a -x bin/palsat -a -x bin/probsat
+      - name: smoke test
+        run: |
+          xz -dc i2.cnf.xz > /tmp/i2.cnf; head -1 /tmp/i2.cnf
+          timeout 20 bin/yalsat /tmp/i2.cnf 1 | grep "^s" || true
+      - name: commit bins
+        run: |
+          git config user.email bot@users.noreply.github.com; git config user.name bot
+          git add -f bin/*; git commit -m "prebuilt solvers $(date -u +%F)"; git push origin HEAD:main
