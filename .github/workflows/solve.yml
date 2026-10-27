@@ -17,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        cfg: ${{ fromJSON(inputs.cfgs != '' && inputs.cfgs || '["pal-1","pal-2","pal-3","pal-4","pal-5","pal-6","ypr-1","ypr-2","ypr-3","ypr-4","yal-1","yal-2","prb-1","prb-2","ksat-1","ksat-2","ksat-3","kdef-1","cad-1","cad-2"]') }}
+        cfg: ${{ fromJSON(inputs.cfgs != '' && inputs.cfgs || '["pal-1","ypr-1","prb-1","pal-2","ypr-2","prb-2","ksat-1","cad-1"]') }}
     steps:
       - uses: actions/checkout@v4
         with: {fetch-depth: 1}
