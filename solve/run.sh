@@ -14,9 +14,8 @@ case $C in
   *) echo "unknown cfg $C"; exit 2 ;;
 esac
 t0=$(date +%s)
-while true; do
-  f=$(grep -l "^s SATISFIABLE" o/*.txt 2>/dev/null | head -1)
-  if [ -n "$f" ]; then
+check() {
+  for f in $(grep -l "^s SATISFIABLE" o/*.txt 2>/dev/null); do
     grep "^v" $f | tr -d 'v' | tr ' ' '\n' | grep -v '^$' > sol.txt
     if python3 solve/verify.py $F sol.txt; then
       echo "SOLVED cfg=$C file=$f after $(( $(date +%s)-t0 ))s"
@@ -28,11 +27,14 @@ while true; do
       pkill -TERM -x palsat; pkill -TERM -x yalsat; pkill -TERM -x probsat; pkill -TERM -x kissat; pkill -TERM -x cadical
       exit 0
     else echo "VERIFY FAILED $f"; mv $f $f.bad; fi
-  fi
-  if ! pgrep -x "palsat|yalsat|probsat|kissat|cadical" >/dev/null; then break; fi
+  done
+}
+while true; do
+  check
+  pgrep -x "palsat|yalsat|probsat|kissat|cadical" >/dev/null || break
   sleep 0.3
 done
-sleep 1
+sleep 0.5; check
 echo "NOSOLVE cfg=$C after $(( $(date +%s)-t0 ))s"
 for f in o/*.txt; do echo "== $f: $(grep -oE 'minimum of [0-9]+|best\([0-9]+\)' $f | tail -2 | tr '\n' ' ')"; done
 exit 1
