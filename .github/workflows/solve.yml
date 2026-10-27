@@ -1,0 +1,60 @@
+name: solve
+on:
+  workflow_dispatch:
+    inputs:
+      at:
+        description: attempt id
+        required: true
+      tmo:
+        default: "800"
+permissions:
+  contents: write
+jobs:
+  solve:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        cfg: [k-def-1,k-def-2,k-def-3,k-sat-1,k-sat-2,k-sat-3,k-sat-4,k-sat-5,k-uns-1,k-uns-2,c-def-1,c-sat-2,c-sat-3,c-sat-4,y-1,y-2,y-3,y-4,y-5,y-6]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/cache@v4
+        id: c
+        with:
+          path: bin
+          key: solvers-v1
+      - name: build
+        if: steps.c.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p bin
+          git clone -q --depth 1 https://github.com/arminbiere/kissat && (cd kissat && ./configure -q >/dev/null && make -s -j4 >/dev/null) &
+          git clone -q --depth 1 https://github.com/arminbiere/cadical && (cd cadical && ./configure -q >/dev/null && make -s -j4 >/dev/null) &
+          git clone -q --depth 1 https://github.com/arminbiere/yalsat && (cd yalsat && ./configure.sh >/dev/null && make -s >/dev/null) &
+          wait; cp kissat/build/kissat cadical/build/cadical yalsat/yalsat bin/
+      - name: solve
+        run: |
+          C=${{ matrix.cfg }}; T=${{ inputs.tmo }}; AT=${{ inputs.at }}; S=${C##*-}
+          xz -dc att/$AT.cnf.xz > f.cnf; F=f.cnf; head -1 f.cnf
+          case $C in
+            k-def-*) for i in 1 2 3 4; do timeout $T bin/kissat -q --seed=$((S*10+i)) $F > o$i.txt & done ;;
+            k-sat-*) for i in 1 2 3 4; do timeout $T bin/kissat -q --sat --seed=$((S*10+i)) $F > o$i.txt & done ;;
+            k-uns-*) for i in 1 2 3 4; do timeout $T bin/kissat -q --sat --walkinitially=true --seed=$((S*10+i)) $F > o$i.txt & done ;;
+            c-def-*) for i in 1 2 3 4; do timeout $T bin/cadical -q --seed=$((S*10+i)) $F > o$i.txt & done ;;
+            c-sat-*) for i in 1 2 3 4; do timeout $T bin/cadical -q --sat --seed=$((S*10+i)) $F > o$i.txt & done ;;
+            y-*) for i in 1 2 3 4; do timeout $T bin/yalsat $F $((S*10+i)) > o$i.txt & done ;;
+          esac
+          start=$(date +%s)
+          while true; do
+            f=$(grep -l "^s SATISFIABLE" o*.txt 2>/dev/null | head -1)
+            if [ -n "$f" ]; then
+              echo "SOLVED $C $f after $(( $(date +%s)-start ))s"
+              grep "^v" $f | tr -d 'v' | tr ' ' '\n' | grep -v '^$' > sol.txt
+              git config user.email a@b.c; git config user.name bot
+              git checkout -q -b sol-$AT-$C; git add -f sol.txt; git commit -qm sol; git push -q origin sol-$AT-$C
+              pkill kissat; pkill cadical; pkill yalsat; break
+            fi
+            if ! pgrep -x "kissat|cadical|yalsat" >/dev/null; then echo "NOSOLVE $C"; exit 1; fi
+            sleep 0.5
+          done
